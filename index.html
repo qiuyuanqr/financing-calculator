@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>分阶段计息综合融资成本测算工具</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f1f5f9;
+    color: #0f172a;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  header {
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+    color: #fff;
+    padding: 28px 40px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  }
+  header h1 { font-size: 22px; font-weight: 600; letter-spacing: 0.5px; }
+  header .sub { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+  main { max-width: 1400px; margin: 24px auto; padding: 0 24px 60px; }
+
+  .section {
+    background: #fff;
+    border-radius: 10px;
+    padding: 22px 26px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    border: 1px solid #e2e8f0;
+  }
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .section-title {
+    font-size: 15px; font-weight: 600; color: #1e3a8a;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-title .badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 6px;
+    background: #1e3a8a; color: #fff; font-size: 12px; font-weight: 700;
+  }
+  .section-hint { font-size: 12px; color: #64748b; }
+
+  .basic-row { display: flex; gap: 24px; align-items: flex-end; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: #64748b; }
+  .field input, .field select {
+    border: 1px solid #cbd5e1; border-radius: 6px;
+    padding: 8px 12px; font-size: 14px; width: 160px;
+    background: #f8fafc; transition: all 0.15s;
+  }
+  .field input:focus, .field select:focus { outline: none; border-color: #2563eb; background: #fff; }
+  .input-suffix { display: inline-flex; align-items: center; gap: 6px; }
+  .input-suffix span { color: #64748b; font-size: 13px; }
+  .apply-btn {
+    background: #2563eb; color: #fff; border: none; border-radius: 6px;
+    padding: 8px 14px; font-size: 13px; cursor: pointer; font-family: inherit;
+    height: 36px;
+  }
+  .apply-btn:hover { background: #1d4ed8; }
+
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.data-table th, table.data-table td {
+    border: 1px solid #e2e8f0;
+    padding: 8px 10px;
+    text-align: right;
+  }
+  table.data-table th {
+    background: #f1f5f9;
+    color: #475569;
+    font-weight: 600;
+    text-align: center;
+    font-size: 12px;
+  }
+  table.data-table td:first-child, table.data-table th:first-child { text-align: center; }
+  table.data-table input, table.data-table select {
+    width: 100%; border: 1px solid transparent; padding: 4px 6px; text-align: right;
+    background: #eff6ff; border-radius: 4px; font-size: 13px;
+    font-family: inherit;
+  }
+  table.data-table select { text-align: left; padding: 4px; }
+  table.data-table input:focus, table.data-table select:focus { outline: none; border-color: #2563eb; background: #fff; }
+  table.data-table input:disabled { background: #f1f5f9; color: #94a3b8; }
+  table.data-table tr.total-row td {
+    background: #f8fafc; font-weight: 600;
+  }
+  table.data-table td.disabled { background: #f8fafc; color: #cbd5e1; }
+
+  .matrix-wrap { overflow-x: auto; }
+  table.matrix th, table.matrix td { padding: 6px 4px; font-size: 12px; }
+  table.matrix th { min-width: 64px; }
+  table.matrix td:first-child, table.matrix th:first-child { min-width: 60px; }
+  table.matrix .row-sum, table.matrix .col-sum, table.matrix .grand-total { font-weight: 600; }
+
+  .badge-ok { color: #059669; font-weight: 600; }
+  .badge-err { color: #dc2626; font-weight: 600; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 500;
+    cursor: pointer; border: none; transition: all 0.15s;
+    font-family: inherit;
+  }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+  .btn-secondary { background: #fff; color: #2563eb; border: 1px solid #2563eb; }
+  .btn-secondary:hover { background: #eff6ff; }
+  .btn-ghost { background: transparent; color: #64748b; border: 1px solid #cbd5e1; }
+  .btn-ghost:hover { background: #f1f5f9; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+  .actions-bar {
+    display: flex; gap: 12px; justify-content: center;
+    padding: 20px 0;
+  }
+  .btn-big {
+    padding: 14px 36px; font-size: 15px; font-weight: 600;
+  }
+
+  .metrics-row {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+    margin-bottom: 18px;
+  }
+  @media (max-width: 1200px) {
+    .metrics-row { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 800px) {
+    .metrics-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  .metric-card {
+    background: #fff; border: 1px solid #e2e8f0;
+    border-radius: 10px; padding: 18px 20px;
+    border-left: 4px solid #2563eb;
+  }
+  .metric-card.accent { border-left-color: #10b981; }
+  .metric-card.warn { border-left-color: #f59e0b; }
+  .metric-label { font-size: 12px; color: #64748b; margin-bottom: 6px; }
+  .metric-value { font-size: 24px; font-weight: 700; color: #0f172a; }
+  .metric-sub { font-size: 11.5px; color: #64748b; margin-top: 8px; line-height: 1.55; padding-top: 8px; border-top: 1px dashed #e2e8f0; }
+
+  .chart-wrap { background: #fff; border-radius: 8px; padding: 16px; }
+  svg.balance-chart { width: 100%; height: 280px; }
+
+  .cf-table-wrap { max-height: 400px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 6px; }
+  table.cashflow { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.cashflow th, table.cashflow td {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 6px 10px;
+    text-align: right;
+    white-space: nowrap;
+  }
+  table.cashflow th {
+    background: #f1f5f9; position: sticky; top: 0;
+    font-weight: 600; color: #475569;
+    text-align: center;
+  }
+  table.cashflow td:first-child, table.cashflow th:first-child { text-align: center; }
+  table.cashflow tr.year-end td { background: #f8fafc; }
+
+  .results-placeholder {
+    background: #fff; border: 2px dashed #cbd5e1; border-radius: 10px;
+    padding: 60px; text-align: center; color: #94a3b8;
+  }
+
+  .toast {
+    position: fixed; bottom: 30px; right: 30px;
+    background: #1e293b; color: #fff;
+    padding: 12px 20px; border-radius: 8px;
+    opacity: 0; transform: translateY(20px);
+    transition: all 0.3s;
+    z-index: 1000; font-size: 13px;
+    max-width: 480px;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  .summary-strip {
+    display: flex; gap: 24px; padding: 10px 14px;
+    background: #f8fafc; border-radius: 6px; margin-top: 10px;
+    font-size: 12px; color: #475569;
+  }
+  .summary-strip strong { color: #0f172a; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 2px solid #e2e8f0; }
+  .tab { padding: 8px 16px; cursor: pointer; font-size: 13px; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+  .tab.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>分阶段计息综合融资成本测算工具</h1>
+  <div class="sub">经营性物业贷款 · 借据组合优化 · 综合融资成本测算（金额单位：万元）</div>
+</header>
+<main>
+
+  <!-- ① 基础参数 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title"><span class="badge">①</span>基础参数</div>
+      <div class="section-hint">改"贷款期限"后点【应用年限】或按回车 / 失焦，下方所有参数会跟着重建</div>
+    </div>
+    <div class="basic-row">
+      <div class="field">
+        <label>贷款总额</label>
+        <div class="input-suffix">
+          <input type="number" id="total" value="220000" step="1000">
+          <span>万元</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>贷款期限（1 ~ 15 年）</label>
+        <div class="input-suffix">
+          <input type="number" id="years" value="15" min="1" max="15">
+          <span>年</span>
+          <button class="apply-btn" id="applyYearsBtn">应用年限</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>方案标签（用于 Excel 命名）</label>
+        <input type="text" id="scenarioName" value="组合方案_v1" style="width:200px;">
+      </div>
+    </div>
+  </div>
+
+  <!-- ② 借据组合 + 利率 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title"><span class="badge">②</span>借据组合 + 利率</div>
+      <div class="section-hint">
+        <span id="notesRuleHint">—</span>
+      </div>
+    </div>
+    <table class="data-table" id="notesTable">
+      <thead>
+        <tr>
+          <th style="width:70px">笔次</th>
+          <th style="width:130px">期限</th>
+          <th>金额（万元）</th>
+          <th style="width:130px">利率（%）</th>
+          <th style="width:90px">占比</th>
+        </tr>
+      </thead>
+      <tbody id="notesBody"></tbody>
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="2">合计</td>
+          <td id="notesTotalAmt">—</td>
+          <td id="notesTotalStatus">—</td>
+          <td>100%</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <!-- ③ 半年期分配比例 + 还款计划预览 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title"><span class="badge">③</span>半年期分配比例（年度均分本金，年内按比例拆）</div>
+      <div class="section-hint">每笔每年还本 = 金额 ÷ 期限；H1 = 当年 × H1%，H2 = 当年 × H2%</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin-bottom:14px;">
+      <div class="input-suffix"><span>上半年 H1</span><input type="number" id="h1Pct" value="40" min="0" max="100" step="1" style="width:80px; border:1px solid #cbd5e1; border-radius:6px; padding:6px 10px; background:#f8fafc; font-family:inherit; font-size:14px;"><span>%</span></div>
+      <div class="input-suffix"><span>下半年 H2</span><span id="h2PctDisp" style="font-weight:600; color:#0f172a;">60</span><span>%</span></div>
+      <div style="color:#64748b; font-size:12px;">示例：720 万 / 2 年，H1=40% → 每年 360 万 → 4 期 = 144 / 216 / 144 / 216</div>
+    </div>
+    <table class="data-table" id="previewTable">
+      <thead>
+        <tr>
+          <th style="width:70px">笔次</th>
+          <th style="width:90px">期限</th>
+          <th>金额</th>
+          <th>每年还本</th>
+          <th>每年 H1</th>
+          <th>每年 H2</th>
+          <th style="width:70px">期数</th>
+        </tr>
+      </thead>
+      <tbody id="previewBody"></tbody>
+    </table>
+  </div>
+
+  <!-- ④ 还本节奏矩阵（派生） -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title"><span class="badge">④</span>还本节奏矩阵（按年度聚合）</div>
+      <div class="section-hint">由③表自动计算，行 = 每笔贷款，列 = 第 N 年合计还本（上下半年两期之和）</div>
+    </div>
+    <div class="matrix-wrap">
+      <table class="data-table matrix" id="matrixTable">
+        <thead><tr id="matrixHeader"></tr></thead>
+        <tbody id="matrixBody"></tbody>
+        <tfoot><tr id="matrixFooter"></tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="actions-bar">
+    <button class="btn btn-primary btn-big" onclick="calculate()">开始计算</button>
+  </div>
+
+  <div id="resultsArea" style="display:none;">
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">📊 关键指标</div>
+        <button class="btn btn-primary" onclick="exportExcel()">⬇ 导出 Excel</button>
+      </div>
+      <div class="metrics-row">
+        <div class="metric-card accent">
+          <div class="metric-label">实际融资成本率</div>
+          <div class="metric-value" id="m_actual">—</div>
+          <div class="metric-sub"><strong>解释：</strong>总利息 ÷ (贷款总额 × 总年限)。把累计利息按"100% 原始本金 × 合同总年限"摊薄，反映利息相对原始本金的负担率。提前还本 → 总利息 ↓ → 这个数会同步 ↓。</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">加权平均利率</div>
+          <div class="metric-value" id="m_wal">—</div>
+          <div class="metric-sub"><strong>解释：</strong>把每笔贷款的「本金 × 存续期限 × 利率」加权后除以「本金 × 存续期限」总和。回答"你借的所有钱平均按多少利率算"。直观，但不反映还款节奏。</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">综合融资成本（利息法）</div>
+          <div class="metric-value" id="m_eff">—</div>
+          <div class="metric-sub"><strong>解释：</strong>实际支付的总利息 ÷ (加权平均余额 × 总年限)。回答"每一块钱本金每年平均承担多少利息"。反映还款节奏，前期多还本会拉低这个数。</div>
+        </div>
+        <div class="metric-card warn">
+          <div class="metric-label">IRR（内部收益率）</div>
+          <div class="metric-value" id="m_irr">—</div>
+          <div class="metric-sub"><strong>解释：</strong>把所有现金流（投放、还本、付息）按发生时点折现，求使净现值为零的年化利率。考虑时间价值，金融上最严谨的真实资金成本。</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">总利息支出</div>
+          <div class="metric-value" id="m_int">—</div>
+          <div class="metric-sub"><strong>解释：</strong>整个贷款期间累计支付的利息总额，不含本金。所有借据每个半年付息额的合计。</div>
+        </div>
+      </div>
+      <div class="summary-strip" id="baselineCompare"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">📈 余额曲线</div>
+      </div>
+      <div class="chart-wrap">
+        <svg class="balance-chart" id="balanceChart"></svg>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">📋 现金流明细</div>
+      </div>
+      <div class="tabs">
+        <div class="tab active" data-tab="annual" onclick="switchTab('annual')">按年汇总</div>
+        <div class="tab" data-tab="semi" onclick="switchTab('semi')">按半年</div>
+      </div>
+      <div class="tab-panel active" id="tab-annual">
+        <div class="cf-table-wrap"><table class="cashflow" id="annualCF"></table></div>
+      </div>
+      <div class="tab-panel" id="tab-semi">
+        <div class="cf-table-wrap"><table class="cashflow" id="semiCF"></table></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="results-placeholder" id="placeholder">
+    点击「开始计算」后，这里会展示关键指标、余额曲线和完整现金流表
+  </div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============= Globals =============
+const MAX_NOTE_TERM = 15;
+let LOAN_YEARS = 15;
+let H1_PCT = 40;
+// NOTES = [{id, term, amount, rate}]; periods are derived from amount/term + H1_PCT
+let NOTES = [];
+
+// ============= Helpers =============
+function termLabel(t) { return `${t}年期`; }
+
+function defaultRate(t) {
+  const table = {1: 2.30, 2: 2.60, 3: 2.85, 4: 3.10, 5: 3.35, 7: 3.80, 10: 4.00, 15: 4.20};
+  if (table[t] !== undefined) return table[t];
+  const keys = Object.keys(table).map(Number).sort((a,b)=>a-b);
+  if (t <= keys[0]) return table[keys[0]];
+  if (t >= keys[keys.length-1]) return table[keys[keys.length-1]];
+  for (let i = 0; i < keys.length-1; i++) {
+    if (t >= keys[i] && t <= keys[i+1]) {
+      const r = (t - keys[i]) / (keys[i+1] - keys[i]);
+      return +(table[keys[i]]*(1-r) + table[keys[i+1]]*r).toFixed(2);
+    }
+  }
+  return 3.50;
+}
+
+function noteCountForYears(N) { return N <= 5 ? N : 6; }
+function allowedSixthTerms(N) {
+  const max = Math.min(MAX_NOTE_TERM, N);
+  const arr = [];
+  for (let t = 6; t <= max; t++) arr.push(t);
+  return arr;
+}
+function defaultSixthTerm(N) { return Math.min(MAX_NOTE_TERM, N); }
+
+function buildNotes(N, total, prevSixthTerm) {
+  const notes = [];
+  if (N <= 5) {
+    const each = Math.floor(total / N);
+    let acc = 0;
+    for (let t = 1; t <= N; t++) {
+      const amount = (t === N) ? (total - acc) : each;
+      acc += amount;
+      notes.push({ id: t, term: t, amount, rate: defaultRate(t) });
+    }
+  } else {
+    const small = Math.max(1, Math.round(total * 0.01));
+    let acc = 0;
+    for (let t = 1; t <= 5; t++) {
+      notes.push({ id: t, term: t, amount: small, rate: defaultRate(t) });
+      acc += small;
+    }
+    const allowed = allowedSixthTerms(N);
+    const sixthTerm = (prevSixthTerm && allowed.includes(prevSixthTerm))
+      ? prevSixthTerm : defaultSixthTerm(N);
+    const sixthAmount = total - acc;
+    notes.push({ id: 6, term: sixthTerm, amount: sixthAmount, rate: defaultRate(sixthTerm) });
+  }
+  return notes;
+}
+
+// Derived from amount/term + H1_PCT
+function annualPrin(note) { return note.amount / note.term; }
+function h1Amount(note) { return annualPrin(note) * H1_PCT / 100; }
+function h2Amount(note) { return annualPrin(note) - h1Amount(note); }
+function derivePeriods(note) {
+  const h1 = h1Amount(note), h2 = h2Amount(note);
+  const arr = [];
+  for (let y = 0; y < note.term; y++) arr.push(h1, h2);
+  return arr;
+}
+
+function findNote(id) { return NOTES.find(n => n.id === id); }
+
+function refreshNotesRuleHint() {
+  const N = LOAN_YEARS;
+  const hint = document.getElementById('notesRuleHint');
+  if (N <= 5) {
+    hint.textContent = `贷款期限 ${N} 年 ≤ 5 年：固定 ${N} 笔贷款（1 年期 ~ ${N} 年期 各一笔）`;
+  } else {
+    const max = Math.min(MAX_NOTE_TERM, N);
+    hint.textContent = `贷款期限 ${N} 年 > 5 年：固定 6 笔贷款（1～5 年期各一笔；第 6 笔承担剩余金额，期限可选 6 ~ ${max} 年）`;
+  }
+}
+
+// ============= ② Render Notes Overview =============
+function renderNotes() {
+  refreshNotesRuleHint();
+  const tbody = document.getElementById('notesBody');
+  let html = '';
+  for (const n of NOTES) {
+    const isEditableTerm = (n.id === 6 && LOAN_YEARS > 5);
+    const termCell = isEditableTerm
+      ? `<select class="note-term" data-id="${n.id}">${allowedSixthTerms(LOAN_YEARS).map(t => `<option value="${t}" ${t===n.term?'selected':''}>${t} 年期</option>`).join('')}</select>`
+      : `${termLabel(n.term)}`;
+    html += `<tr data-id="${n.id}">
+      <td>笔${n.id}</td>
+      <td>${termCell}</td>
+      <td><input type="number" class="note-amount" data-id="${n.id}" value="${n.amount}" step="1"></td>
+      <td><input type="number" class="note-rate" data-id="${n.id}" value="${n.rate}" step="0.01"></td>
+      <td class="note-pct" data-id="${n.id}">—</td>
+    </tr>`;
+  }
+  tbody.innerHTML = html;
+
+  tbody.querySelectorAll('.note-amount').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const id = +e.target.dataset.id;
+      const n = findNote(id);
+      n.amount = parseFloat(e.target.value) || 0;
+      updateNotesTotal();
+      renderPreview();
+      renderMatrix();
+    });
+  });
+  tbody.querySelectorAll('.note-rate').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const id = +e.target.dataset.id;
+      findNote(id).rate = parseFloat(e.target.value) || 0;
+    });
+  });
+  tbody.querySelectorAll('.note-term').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const id = +e.target.dataset.id;
+      const v = parseInt(e.target.value);
+      const n = findNote(id);
+      n.term = v;
+      n.rate = defaultRate(v);
+      renderNotes();
+      renderPreview();
+      renderMatrix();
+    });
+  });
+
+  updateNotesTotal();
+}
+
+function updateNotesTotal() {
+  const total = parseFloat(document.getElementById('total').value) || 0;
+  let sumAmt = 0;
+  for (const n of NOTES) sumAmt += n.amount;
+  document.getElementById('notesTotalAmt').textContent = fmt(sumAmt) + ' 万';
+  document.getElementById('notesTotalStatus').innerHTML = Math.abs(sumAmt - total) < 0.5
+    ? `<span class="badge-ok">✓ 等于总额</span>`
+    : `<span class="badge-err">⚠ 与总额差 ${fmt(sumAmt - total)} 万</span>`;
+  for (const n of NOTES) {
+    const cell = document.querySelector(`.note-pct[data-id="${n.id}"]`);
+    if (cell) cell.textContent = sumAmt > 0 ? (n.amount / sumAmt * 100).toFixed(2) + '%' : '—';
+  }
+}
+
+// ============= ③ Render Preview (derived) =============
+function renderPreview() {
+  document.getElementById('h2PctDisp').textContent = (100 - H1_PCT).toFixed(0);
+  const tbody = document.getElementById('previewBody');
+  let html = '';
+  for (const n of NOTES) {
+    const ap = annualPrin(n);
+    const h1 = h1Amount(n);
+    const h2 = h2Amount(n);
+    html += `<tr>
+      <td>笔${n.id}</td>
+      <td>${termLabel(n.term)}</td>
+      <td>${fmt(n.amount)}</td>
+      <td>${fmt(ap)}</td>
+      <td>${fmt(h1)}</td>
+      <td>${fmt(h2)}</td>
+      <td>${n.term * 2}</td>
+    </tr>`;
+  }
+  tbody.innerHTML = html;
+}
+
+// ============= ④ Render Matrix (derived) =============
+function renderMatrix() {
+  const N = LOAN_YEARS;
+  const header = document.getElementById('matrixHeader');
+  let h = '<th>笔次</th><th>期限</th><th>金额</th>';
+  for (let y = 1; y <= N; y++) h += `<th>第${y}年</th>`;
+  h += '<th>行合计</th>';
+  header.innerHTML = h;
+
+  const tbody = document.getElementById('matrixBody');
+  const colSums = new Array(N).fill(0);
+  let grand = 0;
+  let b = '';
+  for (const n of NOTES) {
+    let rowSum = 0;
+    let cellsHTML = '';
+    const ap = annualPrin(n);
+    for (let y = 0; y < N; y++) {
+      if (y < n.term) {
+        rowSum += ap;
+        colSums[y] += ap;
+        cellsHTML += `<td>${fmt(ap)}</td>`;
+      } else {
+        cellsHTML += `<td class="disabled">—</td>`;
+      }
+    }
+    grand += rowSum;
+    const ok = Math.abs(rowSum - n.amount) < 0.5;
+    b += `<tr><td>笔${n.id}</td><td>${termLabel(n.term)}</td><td>${fmt(n.amount)}</td>${cellsHTML}<td class="row-sum ${ok?'badge-ok':'badge-err'}">${fmt(rowSum)}</td></tr>`;
+  }
+  tbody.innerHTML = b;
+
+  const footer = document.getElementById('matrixFooter');
+  const total = parseFloat(document.getElementById('total').value) || 0;
+  let f = '<td colspan="3">当年合计还本</td>';
+  for (let y = 0; y < N; y++) f += `<td class="col-sum">${fmt(colSums[y])}</td>`;
+  const totalOk = Math.abs(grand - total) < 0.5;
+  f += `<td class="grand-total ${totalOk?'badge-ok':'badge-err'}">${fmt(grand)}</td>`;
+  footer.innerHTML = f;
+}
+
+// ============= Apply Loan Years =============
+function applyLoanYears() {
+  const inp = document.getElementById('years');
+  let n = parseInt(inp.value);
+  if (isNaN(n) || n < 1) n = 1;
+  if (n > MAX_NOTE_TERM) n = MAX_NOTE_TERM;
+  inp.value = n;
+  if (n === LOAN_YEARS) return;
+  LOAN_YEARS = n;
+  const total = parseFloat(document.getElementById('total').value) || 0;
+  const prevSixth = NOTES.find(x => x.id === 6);
+  NOTES = buildNotes(LOAN_YEARS, total, prevSixth ? prevSixth.term : null);
+  renderNotes();
+  renderPreview();
+  renderMatrix();
+  showToast(`已切换到 ${n} 年期方案：共 ${NOTES.length} 笔贷款`);
+}
+
+// ============= Calculation =============
+function calculate() {
+  const N = LOAN_YEARS;
+  const periods = N * 2;
+  const total = parseFloat(document.getElementById('total').value) || 0;
+
+  // 笔数校验
+  const expectedCount = noteCountForYears(N);
+  if (NOTES.length !== expectedCount) {
+    showToast(`⚠ 笔数异常：当前 ${NOTES.length} 笔，应为 ${expectedCount} 笔`, true);
+    return;
+  }
+  // 列校验：金额合计 = 总额（派生模式下不会出现行校验失败，annual×term ≡ amount）
+  let compSum = 0;
+  for (const n of NOTES) compSum += n.amount;
+  if (Math.abs(compSum - total) > 1) {
+    showToast(`⚠ 借据金额合计 ${fmt(compSum)} 万 ≠ 贷款总额 ${fmt(total)} 万，请先修正`, true);
+    return;
+  }
+  // 期限校验：第6笔 ≤ 15
+  const sixth = NOTES.find(x => x.id === 6);
+  if (sixth && sixth.term > MAX_NOTE_TERM) {
+    showToast(`⚠ 第6笔期限 ${sixth.term} 年超过 ${MAX_NOTE_TERM} 年上限`, true);
+    return;
+  }
+  // H1 比例校验
+  if (H1_PCT < 0 || H1_PCT > 100) {
+    showToast(`⚠ 上半年比例 H1 必须在 0 ~ 100 之间`, true);
+    return;
+  }
+
+  // 构建每笔贷款的现金流（每期金额由 derivePeriods 派生）
+  const noteCFs = [];
+  for (const n of NOTES) {
+    if (n.amount === 0) continue;
+    const cf = {
+      id: n.id, term: n.term, principal: n.amount, rate: n.rate / 100,
+      bal: new Array(periods + 1).fill(0),
+      prin: new Array(periods).fill(0),
+      int: new Array(periods).fill(0),
+    };
+    cf.bal[0] = n.amount;
+    const np = derivePeriods(n);
+    for (let p = 0; p < n.term * 2; p++) cf.prin[p] = np[p] || 0;
+    for (let p = 0; p < periods; p++) {
+      cf.int[p] = cf.bal[p] * cf.rate * 0.5;
+      cf.bal[p + 1] = cf.bal[p] - cf.prin[p];
+    }
+    noteCFs.push(cf);
+  }
+  if (noteCFs.length === 0) {
+    showToast('⚠ 至少需要一笔借据有金额', true);
+    return;
+  }
+
+  // 合计
+  const agg = {
+    bal: new Array(periods + 1).fill(0),
+    prin: new Array(periods).fill(0),
+    int: new Array(periods).fill(0),
+  };
+  for (const cf of noteCFs) {
+    for (let p = 0; p <= periods; p++) agg.bal[p] += cf.bal[p];
+    for (let p = 0; p < periods; p++) {
+      agg.prin[p] += cf.prin[p];
+      agg.int[p] += cf.int[p];
+    }
+  }
+
+  // 加权平均利率
+  let num = 0, den = 0;
+  for (const cf of noteCFs) {
+    let dur = 0;
+    for (let p = 0; p < periods; p++) dur += cf.bal[p] * 0.5;
+    dur = dur / cf.principal;
+    num += cf.principal * dur * cf.rate;
+    den += cf.principal * dur;
+  }
+  const wal = den ? num / den : 0;
+
+  // 综合融资成本
+  const totalInt = agg.int.reduce((a, b) => a + b, 0);
+  let avgBalTime = 0;
+  for (let p = 0; p < periods; p++) avgBalTime += agg.bal[p] * 0.5;
+  const avgBal = avgBalTime / N;
+  const effCost = avgBal ? totalInt / avgBal / N : 0;
+  const actualCost = total ? totalInt / total / N : 0;
+
+  // IRR
+  const cfs = [total];
+  for (let p = 0; p < periods; p++) cfs.push(-(agg.prin[p] + agg.int[p]));
+  const irrSemi = solveIRR(cfs);
+  const irrAnnual = Math.pow(1 + irrSemi, 2) - 1;
+
+  // 基线：全部走最长一笔的期限和利率，年度均分本金 + 同样的 H1/H2 比例
+  const longest = noteCFs[noteCFs.length - 1];
+  const rLong = longest.rate;
+  const longTerm = longest.term;
+  const annualB = total / longTerm;
+  const h1B = annualB * H1_PCT / 100;
+  const h2B = annualB - h1B;
+  let baselineInt = 0;
+  let bal = total;
+  for (let y = 0; y < longTerm; y++) {
+    baselineInt += bal * rLong * 0.5;
+    bal -= h1B;
+    baselineInt += bal * rLong * 0.5;
+    bal -= h2B;
+  }
+
+  renderResults({
+    notes: noteCFs, agg, wal, effCost, actualCost, irrAnnual, totalInt, baselineInt,
+    total, totalYears: N, longestTerm: longTerm, longRate: rLong,
+  });
+}
+
+function solveIRR(cfs) {
+  let r = 0.02;
+  for (let iter = 0; iter < 200; iter++) {
+    let f = 0, df = 0;
+    for (let t = 0; t < cfs.length; t++) {
+      const d = Math.pow(1 + r, t);
+      f += cfs[t] / d;
+      df += -t * cfs[t] / (d * (1 + r));
+    }
+    if (Math.abs(df) < 1e-12) break;
+    const newR = r - f / df;
+    if (Math.abs(newR - r) < 1e-10) return newR;
+    r = newR;
+  }
+  return r;
+}
+
+function renderResults(R) {
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('resultsArea').style.display = '';
+
+  document.getElementById('m_actual').textContent = (R.actualCost * 100).toFixed(3) + '%';
+  document.getElementById('m_wal').textContent = (R.wal * 100).toFixed(3) + '%';
+  document.getElementById('m_eff').textContent = (R.effCost * 100).toFixed(3) + '%';
+  document.getElementById('m_irr').textContent = (R.irrAnnual * 100).toFixed(3) + '%';
+  document.getElementById('m_int').textContent = fmt(R.totalInt) + ' 万';
+
+  const saved = R.baselineInt - R.totalInt;
+  const baselinePct = R.baselineInt / R.total / R.totalYears * 100;
+  const ourPct = R.totalInt / R.total / R.totalYears * 100;
+  const savedBp = (baselinePct - ourPct) * 100;
+  document.getElementById('baselineCompare').innerHTML = `
+    <span>对比基线（全部走 ${R.longestTerm} 年期 @ ${(R.longRate*100).toFixed(2)}%、每期均分）：</span>
+    <span>基线总利息 <strong>${fmt(R.baselineInt)} 万</strong></span>
+    <span>组合方案 <strong>${fmt(R.totalInt)} 万</strong></span>
+    <span style="color:${saved>0?'#059669':'#dc2626'};">${saved>0?'节省':'增加'} <strong>${fmt(Math.abs(saved))} 万</strong>（约 ${Math.abs(savedBp).toFixed(1)} bp）</span>
+  `;
+
+  drawBalanceChart(R);
+  renderAnnualCF(R);
+  renderSemiCF(R);
+  window._lastResult = R;
+  document.getElementById('resultsArea').scrollIntoView({ behavior: 'smooth' });
+}
+
+function drawBalanceChart(R) {
+  const svg = document.getElementById('balanceChart');
+  const W = svg.clientWidth || 800, H = 280;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const pad = { l: 80, r: 20, t: 20, b: 36 };
+  const w = W - pad.l - pad.r, h = H - pad.t - pad.b;
+  const maxBal = Math.max(...R.agg.bal);
+  const n = R.agg.bal.length;
+  const x = i => pad.l + i * w / (n - 1);
+  const y = v => pad.t + h - v / maxBal * h;
+  let svgContent = '';
+
+  for (let i = 0; i <= 4; i++) {
+    const yy = pad.t + h * i / 4;
+    const val = maxBal * (1 - i / 4);
+    svgContent += `<line x1="${pad.l}" y1="${yy}" x2="${pad.l+w}" y2="${yy}" stroke="#e2e8f0"/>`;
+    svgContent += `<text x="${pad.l-8}" y="${yy+4}" font-size="11" fill="#64748b" text-anchor="end">${fmt(val)}</text>`;
+  }
+  const tickStep = Math.max(1, Math.ceil(R.totalYears / 8));
+  for (let yy = 0; yy <= R.totalYears; yy += tickStep) {
+    const idx = yy * 2;
+    if (idx >= n) break;
+    svgContent += `<text x="${x(idx)}" y="${H-pad.b+18}" font-size="11" fill="#64748b" text-anchor="middle">Y${yy}</text>`;
+  }
+  if (R.totalYears % tickStep !== 0) {
+    svgContent += `<text x="${x(n-1)}" y="${H-pad.b+18}" font-size="11" fill="#64748b" text-anchor="middle">Y${R.totalYears}</text>`;
+  }
+
+  let path = '';
+  for (let i = 0; i < n; i++) path += (i === 0 ? 'M' : 'L') + x(i) + ',' + y(R.agg.bal[i]);
+  svgContent += `<path d="${path}" stroke="#2563eb" stroke-width="2.5" fill="none"/>`;
+  let area = path + ` L${x(n-1)},${pad.t+h} L${x(0)},${pad.t+h} Z`;
+  svgContent += `<path d="${area}" fill="#2563eb" opacity="0.08"/>`;
+
+  svgContent += `<g transform="translate(${pad.l+10}, ${pad.t+6})">
+    <line x1="0" y1="0" x2="20" y2="0" stroke="#2563eb" stroke-width="2.5"/>
+    <text x="26" y="4" font-size="11" fill="#475569">实际余额</text>
+  </g>`;
+
+  svg.innerHTML = svgContent;
+}
+
+function renderAnnualCF(R) {
+  let html = '<thead><tr><th>年份</th>';
+  for (const n of R.notes) html += `<th>笔${n.id}(${termLabel(n.term)}) 余额</th>`;
+  html += '<th>总余额</th><th>当年还本</th><th>当年付息</th><th>本息合计</th></tr></thead><tbody>';
+  for (let y = 0; y < R.totalYears; y++) {
+    const p2 = 2 * y + 1;
+    let row = `<tr><td>第 ${y+1} 年末</td>`;
+    for (const n of R.notes) row += `<td>${fmt(n.bal[p2+1])}</td>`;
+    row += `<td><strong>${fmt(R.agg.bal[p2+1])}</strong></td>`;
+    const yearPrin = R.agg.prin[2*y] + R.agg.prin[2*y+1];
+    const yearInt = R.agg.int[2*y] + R.agg.int[2*y+1];
+    row += `<td>${fmt(yearPrin)}</td><td>${fmt(yearInt)}</td><td>${fmt(yearPrin+yearInt)}</td></tr>`;
+    html += row;
+  }
+  html += '</tbody>';
+  document.getElementById('annualCF').innerHTML = html;
+}
+
+function renderSemiCF(R) {
+  let html = '<thead><tr><th>期次</th><th>时点</th>';
+  for (const n of R.notes) html += `<th>笔${n.id}(${termLabel(n.term)}) 余额</th>`;
+  html += '<th>总余额</th><th>还本</th><th>付息</th><th>本息合计</th></tr></thead><tbody>';
+  const periods = R.totalYears * 2;
+  for (let p = 0; p < periods; p++) {
+    const yr = Math.floor(p / 2) + 1, half = p % 2 === 0 ? '上半年' : '下半年';
+    const isYearEnd = p % 2 === 1;
+    let row = `<tr class="${isYearEnd?'year-end':''}"><td>${p+1}</td><td>第${yr}年${half}末</td>`;
+    for (const n of R.notes) row += `<td>${fmt(n.bal[p+1])}</td>`;
+    row += `<td><strong>${fmt(R.agg.bal[p+1])}</strong></td>`;
+    row += `<td>${fmt(R.agg.prin[p])}</td><td>${fmt(R.agg.int[p])}</td><td>${fmt(R.agg.prin[p]+R.agg.int[p])}</td></tr>`;
+    html += row;
+  }
+  html += '</tbody>';
+  document.getElementById('semiCF').innerHTML = html;
+}
+
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.dataset.tab === t));
+  document.querySelectorAll('.tab-panel').forEach(x => x.classList.toggle('active', x.id === 'tab-' + t));
+}
+
+// ============= Excel Export =============
+function exportExcel() {
+  const R = window._lastResult;
+  if (!R) { showToast('请先点击「开始计算」', true); return; }
+  const wb = XLSX.utils.book_new();
+  const N = R.totalYears;
+  const total = R.total;
+
+  // Sheet 1: 参数 + 借据组合 + 派生还款计划
+  const s1 = [
+    ['参数', '值'],
+    ['贷款总额（万元）', total],
+    ['贷款期限（年）', N],
+    ['笔数', NOTES.length],
+    ['上半年比例 H1(%)', H1_PCT],
+    ['下半年比例 H2(%)', 100 - H1_PCT],
+    ['方案标签', document.getElementById('scenarioName').value],
+    ['生成时间', new Date().toLocaleString('zh-CN')],
+    [],
+    ['笔次', '期限', '金额(万元)', '利率(%)', '占比(%)', '每年还本', '每年H1', '每年H2', '期数'],
+  ];
+  for (const n of NOTES) {
+    const ap = annualPrin(n);
+    s1.push([
+      `笔${n.id}`, termLabel(n.term), n.amount, +n.rate.toFixed(4),
+      total > 0 ? +(n.amount/total*100).toFixed(2) : 0,
+      +ap.toFixed(4), +h1Amount(n).toFixed(4), +h2Amount(n).toFixed(4), n.term * 2,
+    ]);
+  }
+  s1.push([]);
+  s1.push(['—— 每笔派生还款计划（半年一期，金额=每年还本×H1或H2） ——']);
+  const maxPeriods = Math.max(...NOTES.map(n => n.term * 2));
+  const headerRow = ['笔次', '期限', '金额'];
+  for (let p = 1; p <= maxPeriods; p++) headerRow.push(`第${p}期`);
+  headerRow.push('合计');
+  s1.push(headerRow);
+  for (const n of NOTES) {
+    const np = derivePeriods(n);
+    const row = [`笔${n.id}`, termLabel(n.term), n.amount];
+    for (let p = 0; p < maxPeriods; p++) row.push(p < n.term * 2 ? +np[p].toFixed(4) : '');
+    row.push(+np.reduce((a,b)=>a+b,0).toFixed(4));
+    s1.push(row);
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s1), '参数与还款计划');
+
+  // Sheet 2: 还本节奏矩阵
+  const matRows = [['笔次', '期限', '金额', ...Array.from({length:N}, (_,i)=>`第${i+1}年`), '合计']];
+  for (const n of R.notes) {
+    const row = [`笔${n.id}`, termLabel(n.term), n.principal];
+    let s = 0;
+    for (let y = 0; y < N; y++) {
+      if (y < n.term) {
+        const v = (n.prin[2*y] || 0) + (n.prin[2*y+1] || 0);
+        row.push(v); s += v;
+      } else row.push('');
+    }
+    row.push(s);
+    matRows.push(row);
+  }
+  // footer
+  const footer = ['当年合计', '', ''];
+  for (let y = 0; y < N; y++) {
+    let s = 0;
+    for (const n of R.notes) if (y < n.term) s += (n.prin[2*y] || 0) + (n.prin[2*y+1] || 0);
+    footer.push(s);
+  }
+  footer.push(total);
+  matRows.push(footer);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(matRows), '还本节奏矩阵');
+
+  // Sheet 3: 现金流-按年
+  const annRows = [['年末', '总余额', '当年还本', '当年付息', '本息合计']];
+  for (let y = 0; y < N; y++) {
+    annRows.push([
+      `第${y+1}年末`,
+      R.agg.bal[2*y+2],
+      R.agg.prin[2*y] + R.agg.prin[2*y+1],
+      R.agg.int[2*y] + R.agg.int[2*y+1],
+      R.agg.prin[2*y] + R.agg.prin[2*y+1] + R.agg.int[2*y] + R.agg.int[2*y+1],
+    ]);
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(annRows), '现金流-按年');
+
+  // Sheet 4: 现金流-按半年
+  const semiRows = [['期次', '时点', ...R.notes.map(n => `笔${n.id}(${termLabel(n.term)})余额`), '总余额', '还本', '付息', '本息合计']];
+  for (let p = 0; p < N * 2; p++) {
+    const yr = Math.floor(p / 2) + 1, half = p % 2 === 0 ? '上半年末' : '下半年末';
+    const row = [p + 1, `第${yr}年${half}`];
+    for (const n of R.notes) row.push(n.bal[p+1]);
+    row.push(R.agg.bal[p+1], R.agg.prin[p], R.agg.int[p], R.agg.prin[p] + R.agg.int[p]);
+    semiRows.push(row);
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(semiRows), '现金流-按半年');
+
+  // Sheet 5: 关键指标
+  const m = [
+    ['关键指标', ''],
+    ['实际融资成本率', `${(R.actualCost*100).toFixed(4)}%`],
+    ['加权平均利率', `${(R.wal*100).toFixed(4)}%`],
+    ['综合融资成本(利息法)', `${(R.effCost*100).toFixed(4)}%`],
+    ['IRR(年化)', `${(R.irrAnnual*100).toFixed(4)}%`],
+    ['总利息支出(万元)', R.totalInt.toFixed(2)],
+    [],
+    [`基线对比(全${R.longestTerm}年期、年度均分本金 + 同 H1/H2 比例)`, ''],
+    ['基线总利息(万元)', R.baselineInt.toFixed(2)],
+    ['节省利息(万元)', (R.baselineInt - R.totalInt).toFixed(2)],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(m), '关键指标');
+
+  const ts = new Date();
+  const stamp = `${ts.getFullYear()}${String(ts.getMonth()+1).padStart(2,'0')}${String(ts.getDate()).padStart(2,'0')}_${String(ts.getHours()).padStart(2,'0')}${String(ts.getMinutes()).padStart(2,'0')}${String(ts.getSeconds()).padStart(2,'0')}`;
+  const name = `${document.getElementById('scenarioName').value || '融资成本测算'}_${stamp}.xlsx`;
+  XLSX.writeFile(wb, name);
+  showToast(`已导出 ${name}`);
+}
+
+function showToast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isErr ? '#dc2626' : '#1e293b';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 5000);
+}
+
+function fmt(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  const abs = Math.abs(n);
+  const decimals = abs >= 100 ? 0 : abs >= 1 ? 2 : 4;
+  return n.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: decimals });
+}
+
+// ============= Init =============
+document.getElementById('total').addEventListener('input', () => {
+  updateNotesTotal();
+  renderPreview();
+  renderMatrix();
+});
+document.getElementById('applyYearsBtn').addEventListener('click', applyLoanYears);
+document.getElementById('years').addEventListener('blur', applyLoanYears);
+document.getElementById('years').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); applyLoanYears(); }
+});
+document.getElementById('h1Pct').addEventListener('input', (e) => {
+  let v = parseFloat(e.target.value);
+  if (isNaN(v)) return;
+  if (v < 0) v = 0;
+  if (v > 100) v = 100;
+  H1_PCT = v;
+  renderPreview();
+});
+
+(function init() {
+  const total = parseFloat(document.getElementById('total').value) || 0;
+  NOTES = buildNotes(LOAN_YEARS, total);
+  renderNotes();
+  renderPreview();
+  renderMatrix();
+})();
+</script>
+
+</body>
+</html>
