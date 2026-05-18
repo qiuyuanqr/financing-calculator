@@ -701,7 +701,8 @@ function calculate() {
   // 行校验：每笔矩阵行合计 = 该笔金额
   for (const n of NOTES) {
     const rowSum = n.annual.slice(0, n.term).reduce((a, b) => a + (b || 0), 0);
-    if (Math.abs(rowSum - n.amount) > 1) {
+    // 容差 0.01 万 = 100 元；之前 1 万容差会导致残余本金跨年累计利息
+    if (Math.abs(rowSum - n.amount) > 0.01) {
       showToast(`⚠ 笔${n.id}（${termLabel(n.term)}）矩阵行合计 ${fmt(rowSum)} 万 ≠ 金额 ${fmt(n.amount)} 万，请修正`, true);
       return;
     }
@@ -719,10 +720,16 @@ function calculate() {
     };
     cf.bal[0] = n.amount;
     const np = derivePeriods(n);
-    for (let p = 0; p < n.term * 2; p++) cf.prin[p] = np[p] || 0;
+    const nperiods = n.term * 2;
+    for (let p = 0; p < nperiods; p++) cf.prin[p] = np[p] || 0;
     for (let p = 0; p < periods; p++) {
-      cf.int[p] = cf.bal[p] * cf.rate * 0.5;
-      cf.bal[p + 1] = cf.bal[p] - cf.prin[p];
+      if (p < nperiods) {
+        cf.int[p] = cf.bal[p] * cf.rate * 0.5;
+        cf.bal[p + 1] = cf.bal[p] - cf.prin[p];
+      } else {
+        // 该笔到期后不应再有余额计息（防止行合计有微小误差时残余金额跨年累计利息）
+        cf.bal[p + 1] = 0;
+      }
     }
     noteCFs.push(cf);
   }
