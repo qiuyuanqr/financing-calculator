@@ -1134,8 +1134,11 @@ document.getElementById('years').addEventListener('keydown', (e) => {
 document.getElementById('h1Pct').addEventListener('input', (e) => {
   let v = parseFloat(e.target.value);
   if (isNaN(v)) return;
-  if (v < 0) v = 0;
-  if (v > 100) v = 100;
+  let clamped = false;
+  if (v < 0) { v = 0; clamped = true; }
+  if (v > 100) { v = 100; clamped = true; }
+  // clamp 后把规整后的值写回 input，避免 UI 显示和内部状态脱节
+  if (clamped) e.target.value = v;
   H1_PCT = v;
   refreshH2Display();
   // H1 不改变矩阵格里的年度金额，只影响计算时的 H1/H2 拆分
