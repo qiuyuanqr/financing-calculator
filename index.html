@@ -269,7 +269,7 @@
           <td colspan="2">合计</td>
           <td id="notesTotalAmt">—</td>
           <td id="notesTotalStatus">—</td>
-          <td>100%</td>
+          <td id="notesTotalPct">—</td>
         </tr>
       </tfoot>
     </table>
@@ -424,7 +424,7 @@ function equalSplit(amount, count) {
 function allowedSixthTerms(N) {
   const max = Math.min(MAX_NOTE_TERM, N);
   const arr = [];
-  for (let t = 6; t <= max; t++) arr.push(t);
+  for (let t = 1; t <= max; t++) arr.push(t);
   return arr;
 }
 function defaultSixthTerm(N) { return Math.min(MAX_NOTE_TERM, N); }
@@ -468,7 +468,7 @@ function refreshNotesRuleHint() {
     hint.textContent = `贷款期限 ${N} 年 ≤ 5 年：固定 ${N} 笔贷款（1 年期 ~ ${N} 年期 各一笔）`;
   } else {
     const max = Math.min(MAX_NOTE_TERM, N);
-    hint.textContent = `贷款期限 ${N} 年 > 5 年：固定 6 笔贷款（1～5 年期各一笔；第 6 笔承担剩余金额，期限可选 6 ~ ${max} 年）`;
+    hint.textContent = `贷款期限 ${N} 年 > 5 年：固定 6 笔贷款（1～5 年期各一笔；第 6 笔承担剩余金额，期限可选 1 ~ ${max} 年中任意一年）`;
   }
 }
 
@@ -485,8 +485,8 @@ function renderNotes() {
     html += `<tr data-id="${n.id}">
       <td>笔${n.id}</td>
       <td>${termCell}</td>
-      <td><input type="number" class="note-amount" data-id="${n.id}" value="${n.amount || ''}" step="1" placeholder="万元"></td>
-      <td><input type="number" class="note-rate" data-id="${n.id}" value="${n.rate || ''}" step="0.01" placeholder="${defaultRate(n.term).toFixed(2)}"></td>
+      <td><input type="number" class="note-amount" data-id="${n.id}" value="${n.amount || ''}" step="1"></td>
+      <td><input type="number" class="note-rate" data-id="${n.id}" value="${n.rate || ''}" step="0.01"></td>
       <td class="note-pct" data-id="${n.id}">—</td>
     </tr>`;
   }
@@ -527,13 +527,30 @@ function updateNotesTotal() {
   const total = parseFloat(document.getElementById('total').value) || 0;
   let sumAmt = 0;
   for (const n of NOTES) sumAmt += n.amount;
-  document.getElementById('notesTotalAmt').textContent = fmt(sumAmt) + ' 万';
-  document.getElementById('notesTotalStatus').innerHTML = Math.abs(sumAmt - total) < 0.5
-    ? `<span class="badge-ok">✓ 等于总额</span>`
-    : `<span class="badge-err">⚠ 与总额差 ${fmt(sumAmt - total)} 万</span>`;
+  document.getElementById('notesTotalAmt').textContent = sumAmt > 0 ? fmt(sumAmt) + ' 万' : '—';
+
+  // 状态：金额全空时不提示；否则显示差额或✓
+  const statusCell = document.getElementById('notesTotalStatus');
+  if (sumAmt === 0) {
+    statusCell.textContent = '—';
+  } else if (Math.abs(sumAmt - total) < 0.5) {
+    statusCell.innerHTML = `<span class="badge-ok">✓ 等于总额</span>`;
+  } else {
+    const diff = sumAmt - total;
+    statusCell.innerHTML = `<span class="badge-err">⚠ ${diff > 0 ? '超出' : '差'} ${fmt(Math.abs(diff))} 万</span>`;
+  }
+
+  // 行占比 = 笔金额 / 贷款总额
   for (const n of NOTES) {
     const cell = document.querySelector(`.note-pct[data-id="${n.id}"]`);
-    if (cell) cell.textContent = sumAmt > 0 ? (n.amount / sumAmt * 100).toFixed(2) + '%' : '—';
+    if (!cell) continue;
+    cell.textContent = (total > 0 && n.amount > 0) ? (n.amount / total * 100).toFixed(2) + '%' : '—';
+  }
+
+  // 合计占比 = 已输入金额 / 贷款总额（反映完成度）
+  const pctCell = document.getElementById('notesTotalPct');
+  if (pctCell) {
+    pctCell.textContent = (total > 0 && sumAmt > 0) ? (sumAmt / total * 100).toFixed(2) + '%' : '—';
   }
 }
 
