@@ -497,8 +497,18 @@ function renderNotes() {
       const id = +e.target.dataset.id;
       const n = findNote(id);
       n.amount = parseFloat(e.target.value) || 0;
+      // 若该笔矩阵行还全空（用户刚填金额、没动矩阵），自动按期限均分回填，
+      // 并同步 DOM 中的 mat-cell input，避免 UI 与状态脱节
+      const rowEmpty = n.annual.slice(0, n.term).every(v => !v);
+      if (rowEmpty && n.amount > 0) {
+        n.annual = equalSplit(n.amount, n.term);
+        for (let y = 0; y < n.term; y++) {
+          const cell = document.querySelector(`.mat-cell[data-id="${id}"][data-y="${y}"]`);
+          if (cell) cell.value = n.annual[y] || '';
+        }
+      }
       updateNotesTotal();
-      updateMatrixSums(); // 不重建矩阵以保留用户输入；行合计校验跟着新金额变
+      updateMatrixSums(); // 若用户已手填矩阵则保留输入；只刷新行合计校验
     });
   });
   tbody.querySelectorAll('.note-rate').forEach(inp => {
