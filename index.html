@@ -226,7 +226,7 @@
       <div class="field">
         <label>贷款总额</label>
         <div class="input-suffix">
-          <input type="number" id="total" value="1000" step="100">
+          <input type="number" id="total" value="1000" step="100" min="0">
           <span>万元</span>
         </div>
       </div>
@@ -485,8 +485,8 @@ function renderNotes() {
     html += `<tr data-id="${n.id}">
       <td>笔${n.id}</td>
       <td>${termCell}</td>
-      <td><input type="number" class="note-amount" data-id="${n.id}" value="${n.amount || ''}" step="1"></td>
-      <td><input type="number" class="note-rate" data-id="${n.id}" value="${n.rate || ''}" step="0.01"></td>
+      <td><input type="number" class="note-amount" data-id="${n.id}" value="${n.amount || ''}" step="1" min="0"></td>
+      <td><input type="number" class="note-rate" data-id="${n.id}" value="${n.rate || ''}" step="0.01" min="0"></td>
       <td class="note-pct" data-id="${n.id}">—</td>
     </tr>`;
   }
@@ -585,7 +585,7 @@ function renderMatrix() {
     for (let y = 0; y < N; y++) {
       if (y < n.term) {
         const v = n.annual[y] || 0;
-        cellsHTML += `<td><input type="number" class="mat-cell" data-id="${n.id}" data-y="${y}" value="${v || ''}" step="1"></td>`;
+        cellsHTML += `<td><input type="number" class="mat-cell" data-id="${n.id}" data-y="${y}" value="${v || ''}" step="1" min="0"></td>`;
       } else {
         cellsHTML += `<td class="disabled">—</td>`;
       }
@@ -684,11 +684,40 @@ function calculate() {
   const periods = N * 2;
   const total = parseFloat(document.getElementById('total').value) || 0;
 
+  // 总额校验：必须 > 0
+  if (total <= 0) {
+    showToast('⚠ 贷款总额必须大于 0', true);
+    return;
+  }
   // 笔数校验
   const expectedCount = noteCountForYears(N);
   if (NOTES.length !== expectedCount) {
     showToast(`⚠ 笔数异常：当前 ${NOTES.length} 笔，应为 ${expectedCount} 笔`, true);
     return;
+  }
+  // 负数校验：金额、利率、矩阵格都不能为负
+  for (const n of NOTES) {
+    if (n.amount < 0) {
+      showToast(`⚠ 笔${n.id} 金额 ${fmt(n.amount)} 万为负数，请修正`, true);
+      return;
+    }
+    if (n.rate < 0) {
+      showToast(`⚠ 笔${n.id} 利率 ${n.rate}% 为负数，请修正`, true);
+      return;
+    }
+    for (let y = 0; y < n.term; y++) {
+      if ((n.annual[y] || 0) < 0) {
+        showToast(`⚠ 笔${n.id} 第${y+1}年矩阵格为负数，请修正`, true);
+        return;
+      }
+    }
+  }
+  // 利率校验：金额>0 的笔利率必须>0（避免误显"0% 免息"方案）
+  for (const n of NOTES) {
+    if (n.amount > 0 && !(n.rate > 0)) {
+      showToast(`⚠ 笔${n.id} 金额已填但利率为 0，请填写利率`, true);
+      return;
+    }
   }
   // 列校验：金额合计 = 总额（派生模式下不会出现行校验失败，annual×term ≡ amount）
   let compSum = 0;
