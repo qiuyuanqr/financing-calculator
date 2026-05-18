@@ -884,8 +884,9 @@ function renderResults(R) {
   const baselinePct = R.baselineInt / R.total / R.totalYears * 100;
   const ourPct = R.totalInt / R.total / R.totalYears * 100;
   const savedBp = (baselinePct - ourPct) * 100;
+  const h1Used = R.snapshot ? R.snapshot.h1Pct : H1_PCT;
   document.getElementById('baselineCompare').innerHTML = `
-    <span>对比基线（全部走 ${R.longestTerm} 年期 @ ${(R.longRate*100).toFixed(2)}%、每期均分）：</span>
+    <span>对比基线（全部走 ${R.longestTerm} 年期 @ ${(R.longRate*100).toFixed(2)}%、年度均分本金 + H1/H2 = ${h1Used}/${100-h1Used}）：</span>
     <span>基线总利息 <strong>${fmt(R.baselineInt)} 万</strong></span>
     <span>组合方案 <strong>${fmt(R.totalInt)} 万</strong></span>
     <span style="color:${saved>0?'#059669':'#dc2626'};">${saved>0?'节省':'增加'} <strong>${fmt(Math.abs(saved))} 万</strong>（约 ${Math.abs(savedBp).toFixed(1)} bp）</span>
