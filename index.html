@@ -635,22 +635,34 @@ function updateMatrixSums() {
     grand += rowSum;
     const cell = document.querySelector(`.row-sum[data-id="${n.id}"]`);
     if (cell) {
-      const ok = Math.abs(rowSum - n.amount) < 0.5;
-      cell.className = 'row-sum ' + (ok ? 'badge-ok' : 'badge-err');
-      cell.textContent = fmt(rowSum);
+      // 用户该行还完全空白（金额 0、矩阵也都 0）：显 "—" 无颜色，不当成 "已对齐"
+      if (rowSum === 0 && n.amount === 0) {
+        cell.className = 'row-sum';
+        cell.textContent = '—';
+      } else {
+        const ok = Math.abs(rowSum - n.amount) < 0.5;
+        cell.className = 'row-sum ' + (ok ? 'badge-ok' : 'badge-err');
+        cell.textContent = fmt(rowSum);
+      }
     }
     const amtCell = document.querySelector(`.row-amount[data-id="${n.id}"]`);
-    if (amtCell) amtCell.textContent = fmt(n.amount);
+    if (amtCell) amtCell.textContent = n.amount > 0 ? fmt(n.amount) : '—';
   }
   for (let y = 0; y < N; y++) {
     const cell = document.querySelector(`.col-sum[data-y="${y}"]`);
-    if (cell) cell.textContent = fmt(colSums[y]);
+    if (cell) cell.textContent = colSums[y] > 0 ? fmt(colSums[y]) : '—';
   }
   const gtCell = document.querySelector('.grand-total');
   if (gtCell) {
-    const ok = Math.abs(grand - total) < 0.5;
-    gtCell.className = 'grand-total ' + (ok ? 'badge-ok' : 'badge-err');
-    gtCell.textContent = fmt(grand);
+    // 矩阵完全空白：显 "—" 不上色
+    if (grand === 0) {
+      gtCell.className = 'grand-total';
+      gtCell.textContent = '—';
+    } else {
+      const ok = Math.abs(grand - total) < 0.5;
+      gtCell.className = 'grand-total ' + (ok ? 'badge-ok' : 'badge-err');
+      gtCell.textContent = fmt(grand);
+    }
   }
 }
 
