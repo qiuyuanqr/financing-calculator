@@ -448,12 +448,13 @@ function buildNotes(N, total, prevSixthTerm) {
   return notes;
 }
 
-// Each year's amount = n.annual[y] (user-set); split into H1/H2 by global H1_PCT
-function derivePeriods(note) {
+// Each year's amount = n.annual[y] (user-set); split into H1/H2 by H1_PCT (默认用全局，可传快照值)
+function derivePeriods(note, h1Pct) {
+  const h1Used = (h1Pct === undefined ? H1_PCT : h1Pct);
   const arr = [];
   for (let y = 0; y < note.term; y++) {
     const a = note.annual[y] || 0;
-    const h1 = a * H1_PCT / 100;
+    const h1 = a * h1Used / 100;
     arr.push(h1, a - h1);
   }
   return arr;
@@ -838,9 +839,17 @@ function calculate() {
     bal -= h2B;
   }
 
+  // 输入侧快照：导出 Excel 时不再读实时 NOTES / H1_PCT / 方案名，避免 Sheet1 用新数据、Sheet2~5 用旧数据
+  const snapshot = {
+    notes: NOTES.map(n => ({ id: n.id, term: n.term, amount: n.amount, rate: n.rate, annual: n.annual.slice() })),
+    h1Pct: H1_PCT,
+    scenarioName: document.getElementById('scenarioName').value,
+  };
+
   renderResults({
     notes: noteCFs, agg, wal, effCost, actualCost, irrAnnual, totalInt, baselineInt,
     total, totalYears: N, longestTerm: longTerm, longRate: rLong,
+    snapshot,
   });
 }
 
@@ -1036,21 +1045,25 @@ function exportExcel() {
   const wb = XLSX.utils.book_new();
   const N = R.totalYears;
   const total = R.total;
+  // 全程使用 calculate() 时的快照，避免与 R.notes/R.agg 数据源不一致
+  const snap = R.snapshot;
+  const snapNotes = snap.notes;
+  const snapH1 = snap.h1Pct;
 
   // Sheet 1: 参数 + 借据组合 + 派生还款计划
   const s1 = [
     ['参数', '值'],
     ['贷款总额（万元）', total],
     ['贷款期限（年）', N],
-    ['笔数', NOTES.length],
-    ['上半年比例 H1(%)', H1_PCT],
-    ['下半年比例 H2(%)', 100 - H1_PCT],
-    ['方案标签', document.getElementById('scenarioName').value],
+    ['笔数', snapNotes.length],
+    ['上半年比例 H1(%)', snapH1],
+    ['下半年比例 H2(%)', 100 - snapH1],
+    ['方案标签', snap.scenarioName],
     ['生成时间', new Date().toLocaleString('zh-CN')],
     [],
     ['笔次', '期限', '金额(万元)', '利率(%)', '占比(%)', '平均每年还本', '期数'],
   ];
-  for (const n of NOTES) {
+  for (const n of snapNotes) {
     const avgAnnual = n.term ? n.amount / n.term : 0;
     s1.push([
       `笔${n.id}`, termLabel(n.term), n.amount, +n.rate.toFixed(4),
@@ -1060,13 +1073,13 @@ function exportExcel() {
   }
   s1.push([]);
   s1.push(['—— 每笔派生还款计划（半年一期，金额 = 当年还本 × H1 或 H2） ——']);
-  const maxPeriods = Math.max(...NOTES.map(n => n.term * 2));
+  const maxPeriods = Math.max(...snapNotes.map(n => n.term * 2));
   const headerRow = ['笔次', '期限', '金额'];
   for (let p = 1; p <= maxPeriods; p++) headerRow.push(`第${p}期`);
   headerRow.push('合计');
   s1.push(headerRow);
-  for (const n of NOTES) {
-    const np = derivePeriods(n);
+  for (const n of snapNotes) {
+    const np = derivePeriods(n, snapH1);
     const row = [`笔${n.id}`, termLabel(n.term), n.amount];
     for (let p = 0; p < maxPeriods; p++) row.push(p < n.term * 2 ? +np[p].toFixed(4) : '');
     row.push(+np.reduce((a,b)=>a+b,0).toFixed(4));
@@ -1140,7 +1153,7 @@ function exportExcel() {
 
   const ts = new Date();
   const stamp = `${ts.getFullYear()}${String(ts.getMonth()+1).padStart(2,'0')}${String(ts.getDate()).padStart(2,'0')}_${String(ts.getHours()).padStart(2,'0')}${String(ts.getMinutes()).padStart(2,'0')}${String(ts.getSeconds()).padStart(2,'0')}`;
-  const name = `${document.getElementById('scenarioName').value || '融资成本测算'}_${stamp}.xlsx`;
+  const name = `${snap.scenarioName || '融资成本测算'}_${stamp}.xlsx`;
   XLSX.writeFile(wb, name);
   showToast(`已导出 ${name}`);
 }
