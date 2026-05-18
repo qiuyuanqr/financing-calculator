@@ -771,7 +771,8 @@ function calculate() {
   const irrAnnual = Math.pow(1 + irrSemi, 2) - 1;
 
   // 基线：全部走最长一笔的期限和利率，年度均分本金 + 同样的 H1/H2 比例
-  const longest = noteCFs[noteCFs.length - 1];
+  // 用 reduce 找真正期限最长那笔（第6笔期限可选 1~15y，不能再假设是数组末尾）
+  const longest = noteCFs.reduce((a, b) => b.term > a.term ? b : a);
   const rLong = longest.rate;
   const longTerm = longest.term;
   const annualB = total / longTerm;
