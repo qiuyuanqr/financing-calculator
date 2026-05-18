@@ -260,38 +260,31 @@
     </table>
   </div>
 
-  <!-- ③ 半年期分配比例 + 还款计划预览 -->
+  <!-- ③ 半年期分配比例 -->
   <div class="section">
     <div class="section-header">
-      <div class="section-title"><span class="badge">③</span>半年期分配比例（年度均分本金，年内按比例拆）</div>
-      <div class="section-hint">每笔每年还本 = 金额 ÷ 期限；H1 = 当年 × H1%，H2 = 当年 × H2%</div>
+      <div class="section-title"><span class="badge">③</span>半年期分配比例</div>
+      <div class="section-hint">每年还本（在 ④ 矩阵填）按此比例自动拆成上下半年两期</div>
     </div>
-    <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin-bottom:14px;">
+    <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
       <div class="input-suffix"><span>上半年 H1</span><input type="number" id="h1Pct" value="40" min="0" max="100" step="1" style="width:80px; border:1px solid #cbd5e1; border-radius:6px; padding:6px 10px; background:#f8fafc; font-family:inherit; font-size:14px;"><span>%</span></div>
       <div class="input-suffix"><span>下半年 H2</span><span id="h2PctDisp" style="font-weight:600; color:#0f172a;">60</span><span>%</span></div>
-      <div style="color:#64748b; font-size:12px;">示例：720 万 / 2 年，H1=40% → 每年 360 万 → 4 期 = 144 / 216 / 144 / 216</div>
+      <div style="color:#64748b; font-size:12px;">示例：当年还本 360 万、H1=40% → 上半年 144 / 下半年 216</div>
     </div>
-    <table class="data-table" id="previewTable">
-      <thead>
-        <tr>
-          <th style="width:70px">笔次</th>
-          <th style="width:90px">期限</th>
-          <th>金额</th>
-          <th>每年还本</th>
-          <th>每年 H1</th>
-          <th>每年 H2</th>
-          <th style="width:70px">期数</th>
-        </tr>
-      </thead>
-      <tbody id="previewBody"></tbody>
-    </table>
   </div>
 
-  <!-- ④ 还本节奏矩阵（派生） -->
+  <!-- ④ 还本节奏矩阵（手填） -->
   <div class="section">
     <div class="section-header">
-      <div class="section-title"><span class="badge">④</span>还本节奏矩阵（按年度聚合）</div>
-      <div class="section-hint">由③表自动计算，行 = 每笔贷款，列 = 第 N 年合计还本（上下半年两期之和）</div>
+      <div class="section-title"><span class="badge">④</span>还本节奏矩阵（每年还本金额，由您手动填写）</div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-secondary btn-sm" onclick="resetAnnualAll()">重置为均分</button>
+      </div>
+    </div>
+    <div style="font-size:12px; color:#64748b; margin-bottom:10px;">
+      行 = 每笔贷款，列 = 第 1~N 年。单元格 = 该笔当年还本金额（万元）。<br>
+      自动计算：<span class="badge-ok">行合计</span>（应 = 该笔金额）、<span class="badge-ok">当年合计还本</span>、<span class="badge-ok">总合计</span>（应 = 贷款总额）。
+      默认按"金额 ÷ 期限"均分，您可任意覆盖任一格。
     </div>
     <div class="matrix-wrap">
       <table class="data-table matrix" id="matrixTable">
@@ -405,6 +398,14 @@ function defaultRate(t) {
 }
 
 function noteCountForYears(N) { return N <= 5 ? N : 6; }
+
+function equalSplit(amount, count) {
+  if (count <= 0) return [];
+  const base = +(amount / count).toFixed(2);
+  const arr = new Array(count).fill(base);
+  arr[count - 1] = +(amount - base * (count - 1)).toFixed(2);
+  return arr;
+}
 function allowedSixthTerms(N) {
   const max = Math.min(MAX_NOTE_TERM, N);
   const arr = [];
@@ -415,38 +416,42 @@ function defaultSixthTerm(N) { return Math.min(MAX_NOTE_TERM, N); }
 
 function buildNotes(N, total, prevSixthTerm) {
   const notes = [];
+  const mk = (id, term, amount, rate) => ({
+    id, term, amount, rate,
+    annual: equalSplit(amount, term),
+  });
   if (N <= 5) {
     const each = Math.floor(total / N);
     let acc = 0;
     for (let t = 1; t <= N; t++) {
       const amount = (t === N) ? (total - acc) : each;
       acc += amount;
-      notes.push({ id: t, term: t, amount, rate: defaultRate(t) });
+      notes.push(mk(t, t, amount, defaultRate(t)));
     }
   } else {
     const small = Math.max(1, Math.round(total * 0.01));
     let acc = 0;
     for (let t = 1; t <= 5; t++) {
-      notes.push({ id: t, term: t, amount: small, rate: defaultRate(t) });
+      notes.push(mk(t, t, small, defaultRate(t)));
       acc += small;
     }
     const allowed = allowedSixthTerms(N);
     const sixthTerm = (prevSixthTerm && allowed.includes(prevSixthTerm))
       ? prevSixthTerm : defaultSixthTerm(N);
     const sixthAmount = total - acc;
-    notes.push({ id: 6, term: sixthTerm, amount: sixthAmount, rate: defaultRate(sixthTerm) });
+    notes.push(mk(6, sixthTerm, sixthAmount, defaultRate(sixthTerm)));
   }
   return notes;
 }
 
-// Derived from amount/term + H1_PCT
-function annualPrin(note) { return note.amount / note.term; }
-function h1Amount(note) { return annualPrin(note) * H1_PCT / 100; }
-function h2Amount(note) { return annualPrin(note) - h1Amount(note); }
+// Each year's amount = n.annual[y] (user-set); split into H1/H2 by global H1_PCT
 function derivePeriods(note) {
-  const h1 = h1Amount(note), h2 = h2Amount(note);
   const arr = [];
-  for (let y = 0; y < note.term; y++) arr.push(h1, h2);
+  for (let y = 0; y < note.term; y++) {
+    const a = note.annual[y] || 0;
+    const h1 = a * H1_PCT / 100;
+    arr.push(h1, a - h1);
+  }
   return arr;
 }
 
@@ -489,8 +494,7 @@ function renderNotes() {
       const n = findNote(id);
       n.amount = parseFloat(e.target.value) || 0;
       updateNotesTotal();
-      renderPreview();
-      renderMatrix();
+      updateMatrixSums(); // 不重建矩阵以保留用户输入；行合计校验跟着新金额变
     });
   });
   tbody.querySelectorAll('.note-rate').forEach(inp => {
@@ -506,8 +510,8 @@ function renderNotes() {
       const n = findNote(id);
       n.term = v;
       n.rate = defaultRate(v);
+      n.annual = equalSplit(n.amount, v); // 期限变了，重置 annual
       renderNotes();
-      renderPreview();
       renderMatrix();
     });
   });
@@ -529,29 +533,12 @@ function updateNotesTotal() {
   }
 }
 
-// ============= ③ Render Preview (derived) =============
-function renderPreview() {
+// ============= H1/H2 Display =============
+function refreshH2Display() {
   document.getElementById('h2PctDisp').textContent = (100 - H1_PCT).toFixed(0);
-  const tbody = document.getElementById('previewBody');
-  let html = '';
-  for (const n of NOTES) {
-    const ap = annualPrin(n);
-    const h1 = h1Amount(n);
-    const h2 = h2Amount(n);
-    html += `<tr>
-      <td>笔${n.id}</td>
-      <td>${termLabel(n.term)}</td>
-      <td>${fmt(n.amount)}</td>
-      <td>${fmt(ap)}</td>
-      <td>${fmt(h1)}</td>
-      <td>${fmt(h2)}</td>
-      <td>${n.term * 2}</td>
-    </tr>`;
-  }
-  tbody.innerHTML = html;
 }
 
-// ============= ④ Render Matrix (derived) =============
+// ============= ④ Render Matrix (editable) =============
 function renderMatrix() {
   const N = LOAN_YEARS;
   const header = document.getElementById('matrixHeader');
@@ -561,35 +548,86 @@ function renderMatrix() {
   header.innerHTML = h;
 
   const tbody = document.getElementById('matrixBody');
-  const colSums = new Array(N).fill(0);
-  let grand = 0;
   let b = '';
   for (const n of NOTES) {
-    let rowSum = 0;
     let cellsHTML = '';
-    const ap = annualPrin(n);
     for (let y = 0; y < N; y++) {
       if (y < n.term) {
-        rowSum += ap;
-        colSums[y] += ap;
-        cellsHTML += `<td>${fmt(ap)}</td>`;
+        const v = n.annual[y] != null ? n.annual[y] : 0;
+        cellsHTML += `<td><input type="number" class="mat-cell" data-id="${n.id}" data-y="${y}" value="${v}" step="1"></td>`;
       } else {
         cellsHTML += `<td class="disabled">—</td>`;
       }
     }
-    grand += rowSum;
-    const ok = Math.abs(rowSum - n.amount) < 0.5;
-    b += `<tr><td>笔${n.id}</td><td>${termLabel(n.term)}</td><td>${fmt(n.amount)}</td>${cellsHTML}<td class="row-sum ${ok?'badge-ok':'badge-err'}">${fmt(rowSum)}</td></tr>`;
+    b += `<tr data-id="${n.id}">
+      <td>笔${n.id}</td>
+      <td>${termLabel(n.term)}</td>
+      <td class="row-amount" data-id="${n.id}">${fmt(n.amount)}</td>
+      ${cellsHTML}
+      <td class="row-sum" data-id="${n.id}">—</td>
+    </tr>`;
   }
   tbody.innerHTML = b;
 
   const footer = document.getElementById('matrixFooter');
-  const total = parseFloat(document.getElementById('total').value) || 0;
   let f = '<td colspan="3">当年合计还本</td>';
-  for (let y = 0; y < N; y++) f += `<td class="col-sum">${fmt(colSums[y])}</td>`;
-  const totalOk = Math.abs(grand - total) < 0.5;
-  f += `<td class="grand-total ${totalOk?'badge-ok':'badge-err'}">${fmt(grand)}</td>`;
+  for (let y = 0; y < N; y++) f += `<td class="col-sum" data-y="${y}">—</td>`;
+  f += '<td class="grand-total">—</td>';
   footer.innerHTML = f;
+
+  document.querySelectorAll('.mat-cell').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const id = +e.target.dataset.id;
+      const y = +e.target.dataset.y;
+      const n = findNote(id);
+      n.annual[y] = parseFloat(e.target.value) || 0;
+      updateMatrixSums();
+    });
+  });
+
+  updateMatrixSums();
+}
+
+function updateMatrixSums() {
+  const N = LOAN_YEARS;
+  const total = parseFloat(document.getElementById('total').value) || 0;
+  const colSums = new Array(N).fill(0);
+  let grand = 0;
+  for (const n of NOTES) {
+    let rowSum = 0;
+    for (let y = 0; y < n.term; y++) {
+      const v = n.annual[y] || 0;
+      rowSum += v;
+      colSums[y] += v;
+    }
+    grand += rowSum;
+    const cell = document.querySelector(`.row-sum[data-id="${n.id}"]`);
+    if (cell) {
+      const ok = Math.abs(rowSum - n.amount) < 0.5;
+      cell.className = 'row-sum ' + (ok ? 'badge-ok' : 'badge-err');
+      cell.textContent = fmt(rowSum);
+    }
+    const amtCell = document.querySelector(`.row-amount[data-id="${n.id}"]`);
+    if (amtCell) amtCell.textContent = fmt(n.amount);
+  }
+  for (let y = 0; y < N; y++) {
+    const cell = document.querySelector(`.col-sum[data-y="${y}"]`);
+    if (cell) cell.textContent = fmt(colSums[y]);
+  }
+  const gtCell = document.querySelector('.grand-total');
+  if (gtCell) {
+    const ok = Math.abs(grand - total) < 0.5;
+    gtCell.className = 'grand-total ' + (ok ? 'badge-ok' : 'badge-err');
+    gtCell.textContent = fmt(grand);
+  }
+}
+
+function resetAnnualAll() {
+  for (const n of NOTES) {
+    n.annual = equalSplit(n.amount, n.term);
+  }
+  renderMatrix();
+  showToast('已按"金额 ÷ 期限"重置所有矩阵格');
 }
 
 // ============= Apply Loan Years =============
@@ -605,7 +643,6 @@ function applyLoanYears() {
   const prevSixth = NOTES.find(x => x.id === 6);
   NOTES = buildNotes(LOAN_YEARS, total, prevSixth ? prevSixth.term : null);
   renderNotes();
-  renderPreview();
   renderMatrix();
   showToast(`已切换到 ${n} 年期方案：共 ${NOTES.length} 笔贷款`);
 }
@@ -640,8 +677,16 @@ function calculate() {
     showToast(`⚠ 上半年比例 H1 必须在 0 ~ 100 之间`, true);
     return;
   }
+  // 行校验：每笔矩阵行合计 = 该笔金额
+  for (const n of NOTES) {
+    const rowSum = n.annual.slice(0, n.term).reduce((a, b) => a + (b || 0), 0);
+    if (Math.abs(rowSum - n.amount) > 1) {
+      showToast(`⚠ 笔${n.id}（${termLabel(n.term)}）矩阵行合计 ${fmt(rowSum)} 万 ≠ 金额 ${fmt(n.amount)} 万，请修正`, true);
+      return;
+    }
+  }
 
-  // 构建每笔贷款的现金流（每期金额由 derivePeriods 派生）
+  // 构建每笔贷款的现金流（每期金额 = 当年金额 × H1/H2）
   const noteCFs = [];
   for (const n of NOTES) {
     if (n.amount === 0) continue;
@@ -873,18 +918,18 @@ function exportExcel() {
     ['方案标签', document.getElementById('scenarioName').value],
     ['生成时间', new Date().toLocaleString('zh-CN')],
     [],
-    ['笔次', '期限', '金额(万元)', '利率(%)', '占比(%)', '每年还本', '每年H1', '每年H2', '期数'],
+    ['笔次', '期限', '金额(万元)', '利率(%)', '占比(%)', '平均每年还本', '期数'],
   ];
   for (const n of NOTES) {
-    const ap = annualPrin(n);
+    const avgAnnual = n.term ? n.amount / n.term : 0;
     s1.push([
       `笔${n.id}`, termLabel(n.term), n.amount, +n.rate.toFixed(4),
       total > 0 ? +(n.amount/total*100).toFixed(2) : 0,
-      +ap.toFixed(4), +h1Amount(n).toFixed(4), +h2Amount(n).toFixed(4), n.term * 2,
+      +avgAnnual.toFixed(4), n.term * 2,
     ]);
   }
   s1.push([]);
-  s1.push(['—— 每笔派生还款计划（半年一期，金额=每年还本×H1或H2） ——']);
+  s1.push(['—— 每笔派生还款计划（半年一期，金额 = 当年还本 × H1 或 H2） ——']);
   const maxPeriods = Math.max(...NOTES.map(n => n.term * 2));
   const headerRow = ['笔次', '期限', '金额'];
   for (let p = 1; p <= maxPeriods; p++) headerRow.push(`第${p}期`);
@@ -988,8 +1033,7 @@ function fmt(n) {
 // ============= Init =============
 document.getElementById('total').addEventListener('input', () => {
   updateNotesTotal();
-  renderPreview();
-  renderMatrix();
+  updateMatrixSums(); // 总额变化只刷校验徽章，不重建矩阵
 });
 document.getElementById('applyYearsBtn').addEventListener('click', applyLoanYears);
 document.getElementById('years').addEventListener('blur', applyLoanYears);
@@ -1002,14 +1046,15 @@ document.getElementById('h1Pct').addEventListener('input', (e) => {
   if (v < 0) v = 0;
   if (v > 100) v = 100;
   H1_PCT = v;
-  renderPreview();
+  refreshH2Display();
+  // H1 不改变矩阵格里的年度金额，只影响计算时的 H1/H2 拆分
 });
 
 (function init() {
   const total = parseFloat(document.getElementById('total').value) || 0;
   NOTES = buildNotes(LOAN_YEARS, total);
+  refreshH2Display();
   renderNotes();
-  renderPreview();
   renderMatrix();
 })();
 </script>
