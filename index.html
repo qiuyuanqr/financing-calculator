@@ -866,6 +866,7 @@ function calculate() {
 }
 
 function solveIRR(cfs) {
+  // Newton-Raphson 主路径
   let r = 0.02;
   for (let iter = 0; iter < 200; iter++) {
     let f = 0, df = 0;
@@ -876,10 +877,32 @@ function solveIRR(cfs) {
     }
     if (Math.abs(df) < 1e-12) break;
     const newR = r - f / df;
+    if (!isFinite(newR)) break; // 牛顿迭代炸了（NaN/Infinity），跳出走兜底
     if (Math.abs(newR - r) < 1e-10) return newR;
     r = newR;
   }
-  return r;
+  if (isFinite(r)) return r;
+  return bisectIRR(cfs);
+}
+
+// 二分法兜底：在 [-0.99, 10] 区间找 NPV 符号变化
+function bisectIRR(cfs) {
+  function npv(rate) {
+    let v = 0;
+    for (let t = 0; t < cfs.length; t++) v += cfs[t] / Math.pow(1 + rate, t);
+    return v;
+  }
+  let lo = -0.99, hi = 10;
+  let flo = npv(lo), fhi = npv(hi);
+  if (!isFinite(flo) || !isFinite(fhi) || flo * fhi > 0) return NaN; // 无符号变化或边界异常
+  for (let i = 0; i < 100; i++) {
+    const mid = (lo + hi) / 2;
+    const fmid = npv(mid);
+    if (Math.abs(fmid) < 1e-9) return mid;
+    if (flo * fmid < 0) { hi = mid; fhi = fmid; }
+    else { lo = mid; flo = fmid; }
+  }
+  return (lo + hi) / 2;
 }
 
 function renderResults(R) {
@@ -889,7 +912,7 @@ function renderResults(R) {
   document.getElementById('m_actual').textContent = (R.actualCost * 100).toFixed(3) + '%';
   document.getElementById('m_wal').textContent = (R.wal * 100).toFixed(3) + '%';
   document.getElementById('m_eff').textContent = (R.effCost * 100).toFixed(3) + '%';
-  document.getElementById('m_irr').textContent = (R.irrAnnual * 100).toFixed(3) + '%';
+  document.getElementById('m_irr').textContent = isFinite(R.irrAnnual) ? (R.irrAnnual * 100).toFixed(3) + '%' : '无法求解';
   document.getElementById('m_int').textContent = fmt(R.totalInt) + ' 万';
 
   const saved = R.baselineInt - R.totalInt;
@@ -1155,7 +1178,7 @@ function exportExcel() {
     ['实际融资成本率', `${(R.actualCost*100).toFixed(4)}%`],
     ['加权平均利率', `${(R.wal*100).toFixed(4)}%`],
     ['综合融资成本(利息法)', `${(R.effCost*100).toFixed(4)}%`],
-    ['IRR(年化)', `${(R.irrAnnual*100).toFixed(4)}%`],
+    ['IRR(年化)', isFinite(R.irrAnnual) ? `${(R.irrAnnual*100).toFixed(4)}%` : '无法求解'],
     ['总利息支出(万元)', R.totalInt.toFixed(2)],
     [],
     [`基线对比(全${R.longestTerm}年期、年度均分本金 + 同 H1/H2 比例)`, ''],
