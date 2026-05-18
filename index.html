@@ -701,6 +701,11 @@ function calculate() {
   // 行校验：每笔矩阵行合计 = 该笔金额
   for (const n of NOTES) {
     const rowSum = n.annual.slice(0, n.term).reduce((a, b) => a + (b || 0), 0);
+    // 特例：amount=0 但矩阵填了数 → 之前会被 L713 静默跳过，现在显式报错
+    if (n.amount === 0 && rowSum > 0.01) {
+      showToast(`⚠ 笔${n.id}（${termLabel(n.term)}）金额未填（=0），但矩阵行合计 ${fmt(rowSum)} 万；请先填该笔金额，或清空该行矩阵`, true);
+      return;
+    }
     // 容差 0.01 万 = 100 元；之前 1 万容差会导致残余本金跨年累计利息
     if (Math.abs(rowSum - n.amount) > 0.01) {
       showToast(`⚠ 笔${n.id}（${termLabel(n.term)}）矩阵行合计 ${fmt(rowSum)} 万 ≠ 金额 ${fmt(n.amount)} 万，请修正`, true);
