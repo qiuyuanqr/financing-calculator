@@ -145,8 +145,23 @@
   .metric-value { font-size: 24px; font-weight: 700; color: #0f172a; }
   .metric-sub { font-size: 11.5px; color: #64748b; margin-top: 8px; line-height: 1.55; padding-top: 8px; border-top: 1px dashed #e2e8f0; }
 
-  .chart-wrap { background: #fff; border-radius: 8px; padding: 16px; }
-  svg.balance-chart { width: 100%; height: 280px; }
+  .chart-wrap { background: #fff; border-radius: 8px; padding: 16px; position: relative; }
+  svg.balance-chart { width: 100%; height: 280px; display: block; cursor: crosshair; }
+
+  .chart-tooltip {
+    position: fixed;
+    background: #1e293b; color: #fff;
+    padding: 8px 12px; border-radius: 6px;
+    font-size: 12px; pointer-events: none;
+    opacity: 0; transition: opacity 0.12s;
+    z-index: 1000; white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  }
+  .chart-tooltip.show { opacity: 1; }
+  .chart-tooltip .tt-label { font-weight: 600; color: #93c5fd; margin-bottom: 4px; }
+  .chart-tooltip .tt-line { line-height: 1.55; }
+  .chart-tooltip .tt-sub { color: #94a3b8; font-size: 11px; }
+  .chart-tooltip strong { color: #fff; font-weight: 600; }
 
   .cf-table-wrap { max-height: 400px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 6px; }
   table.cashflow { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -211,7 +226,7 @@
       <div class="field">
         <label>贷款总额</label>
         <div class="input-suffix">
-          <input type="number" id="total" value="220000" step="1000">
+          <input type="number" id="total" value="1000" step="100">
           <span>万元</span>
         </div>
       </div>
@@ -415,31 +430,20 @@ function allowedSixthTerms(N) {
 function defaultSixthTerm(N) { return Math.min(MAX_NOTE_TERM, N); }
 
 function buildNotes(N, total, prevSixthTerm) {
+  // 默认所有金额/利率/矩阵格都留空，用户手动填写
   const notes = [];
-  const mk = (id, term, amount, rate) => ({
-    id, term, amount, rate,
-    annual: equalSplit(amount, term),
+  const mk = (id, term) => ({
+    id, term, amount: 0, rate: 0,
+    annual: new Array(term).fill(0),
   });
   if (N <= 5) {
-    const each = Math.floor(total / N);
-    let acc = 0;
-    for (let t = 1; t <= N; t++) {
-      const amount = (t === N) ? (total - acc) : each;
-      acc += amount;
-      notes.push(mk(t, t, amount, defaultRate(t)));
-    }
+    for (let t = 1; t <= N; t++) notes.push(mk(t, t));
   } else {
-    const small = Math.max(1, Math.round(total * 0.01));
-    let acc = 0;
-    for (let t = 1; t <= 5; t++) {
-      notes.push(mk(t, t, small, defaultRate(t)));
-      acc += small;
-    }
+    for (let t = 1; t <= 5; t++) notes.push(mk(t, t));
     const allowed = allowedSixthTerms(N);
     const sixthTerm = (prevSixthTerm && allowed.includes(prevSixthTerm))
       ? prevSixthTerm : defaultSixthTerm(N);
-    const sixthAmount = total - acc;
-    notes.push(mk(6, sixthTerm, sixthAmount, defaultRate(sixthTerm)));
+    notes.push(mk(6, sixthTerm));
   }
   return notes;
 }
@@ -481,8 +485,8 @@ function renderNotes() {
     html += `<tr data-id="${n.id}">
       <td>笔${n.id}</td>
       <td>${termCell}</td>
-      <td><input type="number" class="note-amount" data-id="${n.id}" value="${n.amount}" step="1"></td>
-      <td><input type="number" class="note-rate" data-id="${n.id}" value="${n.rate}" step="0.01"></td>
+      <td><input type="number" class="note-amount" data-id="${n.id}" value="${n.amount || ''}" step="1" placeholder="万元"></td>
+      <td><input type="number" class="note-rate" data-id="${n.id}" value="${n.rate || ''}" step="0.01" placeholder="${defaultRate(n.term).toFixed(2)}"></td>
       <td class="note-pct" data-id="${n.id}">—</td>
     </tr>`;
   }
@@ -553,8 +557,8 @@ function renderMatrix() {
     let cellsHTML = '';
     for (let y = 0; y < N; y++) {
       if (y < n.term) {
-        const v = n.annual[y] != null ? n.annual[y] : 0;
-        cellsHTML += `<td><input type="number" class="mat-cell" data-id="${n.id}" data-y="${y}" value="${v}" step="1"></td>`;
+        const v = n.annual[y] || 0;
+        cellsHTML += `<td><input type="number" class="mat-cell" data-id="${n.id}" data-y="${y}" value="${v || ''}" step="1"></td>`;
       } else {
         cellsHTML += `<td class="disabled">—</td>`;
       }
@@ -855,7 +859,64 @@ function drawBalanceChart(R) {
     <text x="26" y="4" font-size="11" fill="#475569">实际余额</text>
   </g>`;
 
+  // Hover crosshair + dot + overlay
+  svgContent += `<line id="bc-crosshair" x1="0" y1="${pad.t}" x2="0" y2="${pad.t+h}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" opacity="0" pointer-events="none"/>`;
+  svgContent += `<circle id="bc-dot" cx="0" cy="0" r="5" fill="#fff" stroke="#2563eb" stroke-width="2.5" opacity="0" pointer-events="none"/>`;
+  svgContent += `<rect id="bc-overlay" x="${pad.l}" y="${pad.t}" width="${w}" height="${h}" fill="transparent"/>`;
+
   svg.innerHTML = svgContent;
+
+  // Persistent HTML tooltip
+  let tooltip = document.getElementById('bc-tooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'bc-tooltip';
+    tooltip.className = 'chart-tooltip';
+    document.body.appendChild(tooltip);
+  }
+
+  const overlay = svg.querySelector('#bc-overlay');
+  const crosshair = svg.querySelector('#bc-crosshair');
+  const dot = svg.querySelector('#bc-dot');
+
+  function timeLabel(idx) {
+    if (idx === 0) return '投放时点 (Y0)';
+    const yr = Math.ceil(idx / 2);
+    const half = idx % 2 === 1 ? '上半年末' : '下半年末';
+    return `第 ${yr} 年${half}`;
+  }
+
+  overlay.addEventListener('mousemove', (e) => {
+    const rect = svg.getBoundingClientRect();
+    const mouseVbX = (e.clientX - rect.left) * W / rect.width;
+    const i = Math.round((mouseVbX - pad.l) / w * (n - 1));
+    const idx = Math.max(0, Math.min(n - 1, i));
+    const px = x(idx), py = y(R.agg.bal[idx]);
+
+    crosshair.setAttribute('x1', px);
+    crosshair.setAttribute('x2', px);
+    crosshair.setAttribute('opacity', '0.6');
+    dot.setAttribute('cx', px);
+    dot.setAttribute('cy', py);
+    dot.setAttribute('opacity', '1');
+
+    const bal = R.agg.bal[idx];
+    const repaid = R.total - bal;
+    const pctRepaid = R.total ? (repaid / R.total * 100) : 0;
+    const cumInt = R.agg.int.slice(0, idx).reduce((a, b) => a + b, 0);
+    tooltip.innerHTML = `<div class="tt-label">${timeLabel(idx)}</div>
+      <div class="tt-line">剩余余额 <strong>${fmt(bal)}</strong> 万</div>
+      <div class="tt-line tt-sub">已还本 ${fmt(repaid)} 万 (${pctRepaid.toFixed(1)}%)</div>
+      <div class="tt-line tt-sub">累计付息 ${fmt(cumInt)} 万</div>`;
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top = (e.clientY - 10) + 'px';
+    tooltip.classList.add('show');
+  });
+  overlay.addEventListener('mouseleave', () => {
+    crosshair.setAttribute('opacity', '0');
+    dot.setAttribute('opacity', '0');
+    tooltip.classList.remove('show');
+  });
 }
 
 function renderAnnualCF(R) {
