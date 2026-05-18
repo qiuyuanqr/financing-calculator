@@ -934,6 +934,9 @@ function renderResults(R) {
   document.getElementById('resultsArea').scrollIntoView({ behavior: 'smooth' });
 }
 
+// 模块级缓存：tooltip 跨重绘故意复用，不在 calculate 末尾销毁；避免每次都查 DOM
+let _bcTooltip = null;
+
 function drawBalanceChart(R) {
   const svg = document.getElementById('balanceChart');
   const W = svg.clientWidth || 800, H = 280;
@@ -941,6 +944,8 @@ function drawBalanceChart(R) {
   const pad = { l: 80, r: 20, t: 20, b: 36 };
   const w = W - pad.l - pad.r, h = H - pad.t - pad.b;
   const maxBal = Math.max(...R.agg.bal);
+  // 边界：所有余额都为 0 时画不出图，直接清空 SVG 退出，避免 y(v)=NaN
+  if (!(maxBal > 0)) { svg.innerHTML = ''; return; }
   const n = R.agg.bal.length;
   const x = i => pad.l + i * w / (n - 1);
   const y = v => pad.t + h - v / maxBal * h;
@@ -980,14 +985,14 @@ function drawBalanceChart(R) {
 
   svg.innerHTML = svgContent;
 
-  // Persistent HTML tooltip
-  let tooltip = document.getElementById('bc-tooltip');
-  if (!tooltip) {
-    tooltip = document.createElement('div');
-    tooltip.id = 'bc-tooltip';
-    tooltip.className = 'chart-tooltip';
-    document.body.appendChild(tooltip);
+  // Persistent HTML tooltip：用模块级缓存，避免每次重绘都 getElementById 查找
+  if (!_bcTooltip) {
+    _bcTooltip = document.createElement('div');
+    _bcTooltip.id = 'bc-tooltip';
+    _bcTooltip.className = 'chart-tooltip';
+    document.body.appendChild(_bcTooltip);
   }
+  const tooltip = _bcTooltip;
 
   const overlay = svg.querySelector('#bc-overlay');
   const crosshair = svg.querySelector('#bc-crosshair');
